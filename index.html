@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Update Tool</title>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;700;800&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs (Compat v10 for clean single-file HTML execution) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-off-white: #F4F1E8;
+            --brand-gray: #555555;
+            --brand-yellow: #ffd701;
+            --brand-red: #e74c3c;
+            --brand-blue: #026af2;
+            --text-dark: #363636;
+            --text-muted: #666666;
+            --border-color: #dddddd;
+            --white: #ffffff;
+            --header-height: 62px;
+
+            /* Base Font Sizes */
+            --editor-font-size: 18px;
+            --preview-font-size: 18px;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            font-family: 'Barlow', sans-serif;
+            background-color: var(--bg-off-white);
+            color: var(--text-dark);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            height: var(--header-height);
+            background: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            flex-shrink: 0;
+            border-bottom: 3px solid var(--brand-yellow);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title {
+            font-weight: 800;
+            font-size: 1.05rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--brand-gray);
+            white-space: nowrap;
+        }
+
+        .store-badge {
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #1f4e8c;
+            background: #e8f1fd;
+            border: 1px solid #b6d4fe;
+            padding: 4px 10px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .store-badge.locked {
+            color: #14532d;
+            background: #dcfce7;
+            border-color: #86efac;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .save-indicator {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #27ae60;
+            background: #eafaf1;
+            border: 1px solid #a3e4d7;
+            padding: 4px 10px;
+            border-radius: 4px;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+        }
+
+        .save-indicator.syncing {
+            color: #b9770e;
+            background: #fef9e7;
+            border-color: #f9e79f;
+        }
+
+        .save-indicator.offline {
+            color: #555555;
+            background: #f2f3f4;
+            border-color: #d5d8dc;
+        }
+
+        .btn {
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 14px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn-primary { background: var(--brand-blue); color: white; }
+        .btn-primary:hover { background: #0056c6; }
+        .btn-purple { background: #8e44ad; color: white; }
+        .btn-purple:hover { background: #732d91; }
+        .btn-outline { background: transparent; border: 1px solid #ccc; color: var(--text-dark); }
+        .btn-outline:hover { background: #eee; }
+
+        .app-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 16px;
+            min-height: 0;
+            max-width: 1920px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .panel {
+            background: var(--white);
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 100%;
+        }
+
+        .editor-panel-body {
+            font-size: var(--editor-font-size);
+        }
+
+        .preview-panel-body {
+            font-size: var(--preview-font-size);
+            background-color: #eef1f5;
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+            display: block;
+        }
+
+        .panel-header {
+            padding: 12px 16px;
+            background: #fafafa;
+            border-bottom: 2px solid var(--brand-yellow);
+            font-weight: 800;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            color: var(--brand-gray);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        .panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .form-section {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            background: #f4f6f8;
+            padding: 8px 12px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--brand-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-grid {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .form-row label {
+            width: 220px;
+            flex-shrink: 0;
+            font-size: var(--editor-font-size);
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .form-row.two-col-inline label {
+            width: 160px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 6px;
+            flex: 1;
+            align-items: center;
+        }
+
+        .input-group-suffix {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .input-group-suffix input {
+            padding-right: 28px;
+        }
+
+        .input-group-suffix .suffix {
+            position: absolute;
+            right: 8px;
+            font-size: var(--editor-font-size);
+            font-weight: 700;
+            color: #777;
+            pointer-events: none;
+        }
+
+        input[type="text"], input[type="number"], input[type="date"], select, textarea {
+            font-family: inherit;
+            font-size: var(--editor-font-size);
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+            width: 100%;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--brand-blue);
+        }
+
+        select.num-picker {
+            width: 90px;
+            flex-shrink: 0;
+            background-color: #f9f9f9;
+            font-weight: 700;
+            font-size: var(--editor-font-size);
+        }
+
+        .store-select-bar {
+            background: #f0f6ff;
+            border-bottom: 1px solid #d0e2ff;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .store-select-bar.is-locked {
+            background: #f0fdf4;
+            border-bottom-color: #bbf7d0;
+        }
+
+        .store-select-bar label {
+            width: 220px;
+            flex-shrink: 0;
+            font-size: var(--editor-font-size);
+            font-weight: 800;
+            color: #1f4e8c;
+        }
+
+        .store-select-bar.is-locked label {
+            color: #166534;
+        }
+
+        .store-select-bar select {
+            font-weight: 700;
+            border-color: #9ec5fe;
+            background-color: #ffffff;
+        }
+
+        .store-select-bar select:disabled {
+            background-color: #e9ecef;
+            color: #166534;
+            border-color: #86efac;
+            cursor: not-allowed;
+            opacity: 1;
+            -webkit-text-fill-color: #166534;
+        }
+
+        .lock-pill {
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            display: none;
+        }
+
+        .store-select-bar.is-locked .lock-pill {
+            display: inline-block;
+        }
+
+        .day-block {
+            border: 1px solid #e2e2e2;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #fafafa;
+        }
+
+        .day-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-left: 8px;
+        }
+
+        .task-item {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .task-item::before {
+            content: "•";
+            font-weight: bold;
+            color: var(--brand-gray);
+        }
+
+        .btn-icon-del {
+            background: #fdf0ef;
+            color: var(--brand-red);
+            border: 1px solid #f5c6c2;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-weight: 800;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-icon-del:hover { background: #fad9d6; }
+
+        .btn-add-sub {
+            background: #eef4ff;
+            color: var(--brand-blue);
+            border: 1px solid #cce0ff;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-top: 6px;
+        }
+        .btn-add-sub:hover { background: #dce9ff; }
+
+        .issue-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #fcfcfc;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: var(--editor-font-size);
+        }
+
+        /* Preview output document style */
+        .preview-container {
+            background: #ffffff;
+            border: 1px solid #dcdcdc;
+            border-radius: 6px;
+            padding: 28px;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: var(--preview-font-size);
+            line-height: 1.45;
+            color: #000000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: block;
+            width: 100%;
+            margin-bottom: 24px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-left">
+            <div class="header-title" id="mainHeaderTitle">Facility Name - Weekly Update</div>
+            <span id="activeStoreBadge" class="store-badge">Store: LELAND</span>
+        </div>
+
+        <div class="header-actions">
+            <button class="btn btn-outline" onclick="copyShareableStoreUrl()" style="padding: 4px 10px; font-size:0.8rem;" title="Copy direct link for this store's PCs">🔗 Copy Store Link</button>
+            <button class="btn btn-outline" onclick="resetForm()" style="padding: 4px 10px; font-size:0.8rem;">↺ Reset Form</button>
+            <span id="saveStatus" class="save-indicator">✓ Synced: LELAND</span>
+        </div>
+    </header>
+
+    <main class="app-container">
+        <div class="panel">
+            <div class="panel-header">
+                <span>Update Input Fields</span>
+                <span style="font-size: 0.75rem; color: #777;">Multi-PC Cloud Sync + Offline Backup</span>
+            </div>
+            <div class="panel-body editor-panel-body">
+
+                <!-- 0. REPORT TITLE / FACILITY -->
+                <div class="form-section">
+                    <div class="section-title">0. Store Sync & Header Location</div>
+                    <div class="store-select-bar" id="storeSelectBar">
+                        <label for="storeSelector">Assigned Facility:</label>
+                        <select id="storeSelector" onchange="switchStore(this.value)">
+                            <option value="leland">Leland, NC (Leland)</option>
+                            <option value="wilmington">Wilmington, NC (Wilmington)</option>
+                            <option value="jacksonville">Jacksonville, NC (Jacksonville)</option>
+                            <option value="myrtle-beach">Myrtle Beach, SC (Myrtle Beach)</option>
+                            <option value="store-5">Facility #5 (Custom)</option>
+                        </select>
+                        <span class="lock-pill" id="storeLockPill" title="Locked via store URL link">🔒 URL Locked</span>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="reportTitle">Report Title / Facility Code:</label>
+                            <input type="text" id="reportTitle" value="Leland - Weekly Update" style="font-weight:700;" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="emailRecipient">Recipient Email(s):</label>
+                            <input type="text" id="emailRecipient" value="weekly.updates@aa-self-storage.com" placeholder="e.g. manager@facility.com" oninput="handleInput()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. MOVE INS -->
+                <div class="form-section">
+                    <div class="section-title">1. Move Ins & Activity</div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="moveIns">Move Ins:</label>
+                            <div class="input-group">
+                                <input type="number" id="moveIns" value="0" oninput="handleInput()">
+                                <select id="picker-moveIns" class="num-picker" onchange="syncPicker('moveIns', this)">
+                                    <option value="" class="default-opt">0</option>
+                                    <script>for(let i=0;i<=50;i++) document.write(`<option value="${i}">${i}</option>`);</script>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="moveOuts">Move Out:</label>
+                            <div class="input-group">
+                                <input type="number" id="moveOuts" value="0" oninput="handleInput()">
+                                <select id="picker-moveOuts" class="num-picker" onchange="syncPicker('moveOuts', this)">
+                                    <option value="" class="default-opt">0</option>
+                                    <script>for(let i=0;i<=50;i++) document.write(`<option value="${i}">${i}</option>`);</script>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="transfers">Transfers:</label>
+                            <div class="input-group">
+                                <input type="number" id="transfers" value="0" oninput="handleInput()">
+                                <select id="picker-transfers" class="num-picker" onchange="syncPicker('transfers', this)">
+                                    <option value="" class="default-opt">0</option>
+                                    <script>for(let i=0;i<=50;i++) document.write(`<option value="${i}">${i}</option>`);</script>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. OCCUPANCY -->
+                <div class="form-section">
+                    <div class="section-title">2. Occupancy Percentages</div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="occStandard">Standard Occupancy %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occStandard" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occClimate">Climate Controlled %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occClimate" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occBoat">Covered Boat/RV %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occBoat" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occOutsideParking">Outside Parking %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occOutsideParking" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occPortable">Portable %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occPortable" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occTotal">Total Occupancy %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occTotal" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="occLastYear">Last Year’s Occupancy %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="occLastYear" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. DELINQUENCY -->
+                <div class="form-section">
+                    <div class="section-title">3. Delinquency & Auctions</div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="delinqRate">Delinquency Rate %:</label>
+                            <div class="input-group-suffix">
+                                <input type="text" id="delinqRate" value="0.0" oninput="handleInput()">
+                                <span class="suffix">%</span>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="pastDueCust">Past Due Customers:</label>
+                            <div class="input-group">
+                                <input type="number" id="pastDueCust" value="0" oninput="handleInput()">
+                                <select id="picker-pastDueCust" class="num-picker" onchange="syncPicker('pastDueCust', this)">
+                                    <option value="" class="default-opt">0</option>
+                                    <script>for(let i=0;i<=100;i++) document.write(`<option value="${i}">${i}</option>`);</script>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <label for="pastDueDollars">Past Due $'s:</label>
+                            <input type="text" id="pastDueDollars" value="0.00" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="totalRented">Total # of Rented:</label>
+                            <input type="number" id="totalRented" value="0" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="pastDue60">Past Due 60:</label>
+                            <input type="number" id="pastDue60" value="0" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="pastDue3059">Past Due 30-59:</label>
+                            <input type="number" id="pastDue3059" value="0" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="pastDue529">Past Due 5-29:</label>
+                            <input type="number" id="pastDue529" value="0" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="lastAuction">Date of Last Auction:</label>
+                            <input type="text" id="lastAuction" value="MM/DD/YYYY" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="nextAuction">Date of Next Auction:</label>
+                            <input type="text" id="nextAuction" value="MM/DD/YYYY" oninput="handleInput()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. DEPOSITS -->
+                <div class="form-section">
+                    <div class="section-title">4. Deposits</div>
+                    <div class="form-grid">
+                        <div class="form-row two-col-inline">
+                            <label>Previous Month:</label>
+                            <select id="depMonth1Name" onchange="handleInput()">
+                                <option value="January">January</option>
+                                <option value="February">February</option>
+                                <option value="March">March</option>
+                                <option value="April">April</option>
+                                <option value="May">May</option>
+                                <option value="June">June</option>
+                                <option value="July">July</option>
+                                <option value="August">August</option>
+                                <option value="September">September</option>
+                                <option value="October" selected>October</option>
+                                <option value="November">November</option>
+                                <option value="December">December</option>
+                            </select>
+                            <input type="text" id="depYear1" value="2026" placeholder="Year" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="depM1Current">Previous Month Amount ($):</label>
+                            <input type="text" id="depM1Current" value="0.00" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="depM1Prior">Previous Month 1 Year Prior ($):</label>
+                            <input type="text" id="depM1Prior" value="0.00" oninput="handleInput()">
+                        </div>
+
+                        <hr style="border:none; border-top:1px dashed #eee; margin:4px 0;">
+
+                        <div class="form-row two-col-inline">
+                            <label>Current Month:</label>
+                            <select id="depMonth2Name" onchange="handleInput()">
+                                <option value="January">January</option>
+                                <option value="February">February</option>
+                                <option value="March">March</option>
+                                <option value="April">April</option>
+                                <option value="May">May</option>
+                                <option value="June">June</option>
+                                <option value="July">July</option>
+                                <option value="August">August</option>
+                                <option value="September">September</option>
+                                <option value="October">October</option>
+                                <option value="November" selected>November</option>
+                                <option value="December">December</option>
+                            </select>
+                            <input type="text" id="depYear2" value="2026" placeholder="Year" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="depM2Current">Current Month Amount ($):</label>
+                            <input type="text" id="depM2Current" value="0.00" oninput="handleInput()">
+                        </div>
+                        <div class="form-row">
+                            <label for="depM2Prior">Current Month 1 Year Prior ($):</label>
+                            <input type="text" id="depM2Prior" value="0.00" oninput="handleInput()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. UNRENTABLE UNITS -->
+                <div class="form-section">
+                    <div class="section-title">5. Facility Status</div>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="unrentableUnits">Unrentable Units #:</label>
+                            <div class="input-group">
+                                <input type="number" id="unrentableUnits" value="0" oninput="handleInput()">
+                                <select id="picker-unrentableUnits" class="num-picker" onchange="syncPicker('unrentableUnits', this)">
+                                    <option value="" class="default-opt">0</option>
+                                    <script>for(let i=0;i<=50;i++) document.write(`<option value="${i}">${i}</option>`);</script>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. WEEKLY NOTES -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span>6. Weekly Notes (Daily Tasks)</span>
+                        <button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem;" onclick="addDayBlock()">+ Add Day</button>
+                    </div>
+                    <div style="padding:10px;" id="dailyNotesContainer"></div>
+                </div>
+
+                <!-- 7. UNRESOLVED ISSUES -->
+                <div class="form-section">
+                    <div class="section-title">
+                        <span>7. Unresolved / Ongoing Issues</span>
+                        <button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem;" onclick="addIssueCard()">+ Add Issue</button>
+                    </div>
+                    <div style="padding:10px;" id="issuesContainer"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span>Email Preview Output</span>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="copyFormattedEmail()" style="padding: 4px 10px; font-size:0.8rem;">📋 Copy to Clipboard</button>
+                    <button class="btn btn-purple" onclick="downloadEML()" style="padding: 4px 10px; font-size:0.8rem;">📥 Download .EML</button>
+                </div>
+            </div>
+            <div class="preview-panel-body">
+                <div id="emailPreview" class="preview-container"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="toast" class="toast">Copied to clipboard! Ready to paste into email.</div>
+
+    <script>
+        // =========================================================================
+        // 1. FIREBASE CONFIGURATION
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyC1w7shhAwtLS0PJSJ67fhNfA67JetO3s4",
+            authDomain: "leland-dashboard.firebaseapp.com",
+            projectId: "leland-dashboard",
+            storageBucket: "leland-dashboard.firebasestorage.app",
+            messagingSenderId: "520920211884",
+            appId: "1:520920211884:web:db378402829a898a0c9a09"
+        };
+
+        let db = null;
+        let firestoreUnsubscribe = null;
+        let cloudSaveTimeout = null;
+        let isApplyingRemoteUpdate = false;
+        const clientSessionId = 'client_' + Math.random().toString(36).substring(2, 10);
+
+        const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY";
+
+        if (isFirebaseConfigured && typeof firebase !== 'undefined') {
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                db = firebase.firestore();
+            } catch (e) {
+                console.error("Firebase initialization error:", e);
+            }
+        }
+
+        // =========================================================================
+        // 2. STORE PARTITIONING & URL LOCKING (?store=<storeid>)
+        // =========================================================================
+        const ASSIGNED_STORE_KEY = 'aa_weekly_update_assigned_store';
+
+        const STORE_DISPLAY_NAMES = {
+            'leland': 'Leland',
+            'wilmington': 'Wilmington',
+            'jacksonville': 'Jacksonville',
+            'myrtle-beach': 'Myrtle Beach',
+            'store-5': 'Facility #5'
+        };
+
+        let isStoreLockedByUrl = false;
+
+        function resolveInitialStoreId() {
+            const params = new URLSearchParams(window.location.search);
+            const urlStore = params.get('store');
+            if (urlStore) {
+                const sanitized = urlStore.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                if (sanitized) {
+                    isStoreLockedByUrl = true;
+                    localStorage.setItem(ASSIGNED_STORE_KEY, sanitized);
+                    return sanitized;
+                }
+            }
+            const savedStore = localStorage.getItem(ASSIGNED_STORE_KEY);
+            return savedStore || 'leland';
+        }
+
+        let currentStoreId = resolveInitialStoreId();
+
+        function getStorageKey(storeId = currentStoreId) {
+            return `weekly_update_tool_draft_v2_${storeId}`;
+        }
+
+        // GENERALIZED DEFAULT TEMPLATES
+        const defaultDailyNotes = [
+            {
+                dayHeader: "MON",
+                dateVal: "",
+                tasks: [
+                    "Staff member working.",
+                    "Contacted past due accounts.",
+                    "Completed site walk."
+                ]
+            }
+        ];
+
+        const defaultIssues = [
+            {
+                title: "General Maintenance Item",
+                reported: "Y",
+                reportedTo: "Maintenance Dept",
+                stepsTaken: "Under review",
+                resolved: "N"
+            }
+        ];
+
+        let dailyNotes = JSON.parse(JSON.stringify(defaultDailyNotes));
+        let issues = JSON.parse(JSON.stringify(defaultIssues));
+
+        // =========================================================================
+        // 3. INITIALIZATION & STORE LOCK ENFORCEMENT
+        // =========================================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            syncStoreSelectorUI(currentStoreId);
+            loadStoreState(currentStoreId);
+        });
+
+        function syncStoreSelectorUI(storeId) {
+            const selector = document.getElementById('storeSelector');
+            const selectBar = document.getElementById('storeSelectBar');
+            const badge = document.getElementById('activeStoreBadge');
+
+            if (selector) {
+                // Dynamically add custom store option if passed via ?store=<custom_id>
+                let exists = Array.from(selector.options).some(opt => opt.value === storeId);
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = storeId;
+                    opt.textContent = `${STORE_DISPLAY_NAMES[storeId] || storeId.toUpperCase()} (${storeId})`;
+                    selector.appendChild(opt);
+                }
+                selector.value = storeId;
+
+                // Lock dropdown if ?store= parameter was provided in the URL
+                if (isStoreLockedByUrl) {
+                    selector.disabled = true;
+                    selector.title = "Facility is locked by your location's URL link.";
+                } else {
+                    selector.disabled = false;
+                }
+            }
+
+            if (selectBar) {
+                if (isStoreLockedByUrl) {
+                    selectBar.classList.add('is-locked');
+                } else {
+                    selectBar.classList.remove('is-locked');
+                }
+            }
+
+            if (badge) {
+                if (isStoreLockedByUrl) {
+                    badge.classList.add('locked');
+                    badge.textContent = `🔒 Store: ${storeId.toUpperCase()}`;
+                } else {
+                    badge.classList.remove('locked');
+                    badge.textContent = `Store: ${storeId.toUpperCase()}`;
+                }
+            }
+        }
+
+        function switchStore(newStoreId) {
+            // Hard guard: prevent changing store if URL locked
+            if (isStoreLockedByUrl) {
+                syncStoreSelectorUI(currentStoreId);
+                showToast(`Location is locked to ${currentStoreId.toUpperCase()} by URL.`);
+                return;
+            }
+
+            if (!newStoreId || newStoreId === currentStoreId) return;
+            currentStoreId = newStoreId;
+            localStorage.setItem(ASSIGNED_STORE_KEY, currentStoreId);
+
+            // Update browser URL without reloading page
+            const url = new URL(window.location.href);
+            url.searchParams.set('store', currentStoreId);
+            window.history.replaceState({}, '', url);
+
+            syncStoreSelectorUI(currentStoreId);
+            loadStoreState(currentStoreId);
+            showToast(`Switched active sync to ${currentStoreId.toUpperCase()}`);
+        }
+
+        function loadStoreState(storeId) {
+            resetFieldsToDefaults(storeId);
+            loadFromLocalStorage(storeId);
+            renderDailyNotesEditor();
+            renderIssuesEditor();
+            updateDropdownLabels();
+            renderPreview();
+
+            // Attach Firestore real-time listener for this specific store document
+            attachFirestoreListener(storeId);
+        }
+
+        function resetFieldsToDefaults(storeId) {
+            const displayName = STORE_DISPLAY_NAMES[storeId] || storeId.toUpperCase();
+            const defaults = {
+                reportTitle: `${displayName} - Weekly Update`,
+                emailRecipient: 'weekly.updates@aa-self-storage.com',
+                moveIns: '0',
+                moveOuts: '0',
+                transfers: '0',
+                occStandard: '0.0',
+                occClimate: '0.0',
+                occBoat: '0.0',
+                occOutsideParking: '0.0',
+                occPortable: '0.0',
+                occTotal: '0.0',
+                occLastYear: '0.0',
+                delinqRate: '0.0',
+                pastDueCust: '0',
+                pastDueDollars: '0.00',
+                totalRented: '0',
+                pastDue60: '0',
+                pastDue3059: '0',
+                pastDue529: '0',
+                lastAuction: 'MM/DD/YYYY',
+                nextAuction: 'MM/DD/YYYY',
+                depMonth1Name: 'October',
+                depYear1: '2026',
+                depM1Current: '0.00',
+                depM1Prior: '0.00',
+                depMonth2Name: 'November',
+                depYear2: '2026',
+                depM2Current: '0.00',
+                depM2Prior: '0.00',
+                unrentableUnits: '0'
+            };
+
+            Object.keys(defaults).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = defaults[id];
+            });
+
+            dailyNotes = JSON.parse(JSON.stringify(defaultDailyNotes));
+            issues = JSON.parse(JSON.stringify(defaultIssues));
+        }
+
+        // =========================================================================
+        // 4. FIRESTORE REAL-TIME SYNC & DEBOUNCED WRITES
+        // =========================================================================
+        function attachFirestoreListener(storeId) {
+            if (firestoreUnsubscribe) {
+                firestoreUnsubscribe();
+                firestoreUnsubscribe = null;
+            }
+
+            if (!db) {
+                updateSaveBadge('offline', `Local Only: ${storeId.toUpperCase()}`);
+                return;
+            }
+
+            updateSaveBadge('syncing', `Connecting: ${storeId.toUpperCase()}...`);
+
+            firestoreUnsubscribe = db.collection('weekly_updates').doc(storeId)
+                .onSnapshot((doc) => {
+                    if (!doc.exists) {
+                        updateSaveBadge('synced', `✓ Cloud Ready: ${storeId.toUpperCase()}`);
+                        return;
+                    }
+
+                    const data = doc.data();
+
+                    // Ignore echo snapshots originating from this exact browser tab
+                    if (data.lastUpdatedBy === clientSessionId) {
+                        updateSaveBadge('synced', `✓ Synced: ${storeId.toUpperCase()}`);
+                        return;
+                    }
+
+                    // Apply incoming changes from another PC at the same store
+                    isApplyingRemoteUpdate = true;
+                    try {
+                        applyStateToUI(data);
+                        saveToLocalStorage(storeId);
+                        updateSaveBadge('synced', `✓ Live Synced: ${storeId.toUpperCase()}`);
+                    } finally {
+                        isApplyingRemoteUpdate = false;
+                    }
+                }, (error) => {
+                    console.error("Firestore sync error:", error);
+                    updateSaveBadge('offline', `Offline Backup: ${storeId.toUpperCase()}`);
+                });
+        }
+
+        function applyStateToUI(state) {
+            const activeEl = document.activeElement;
+
+            if (state.inputs) {
+                Object.keys(state.inputs).forEach(id => {
+                    if (id === 'storeSelector') return;
+                    const el = document.getElementById(id);
+                    // Preserve active cursor focus so typing isn't interrupted
+                    if (el && el !== activeEl) {
+                        el.value = state.inputs[id];
+                    }
+                });
+            }
+
+            if (state.dailyNotes && Array.isArray(state.dailyNotes)) {
+                dailyNotes = state.dailyNotes;
+                if (!activeEl || !document.getElementById('dailyNotesContainer').contains(activeEl)) {
+                    renderDailyNotesEditor();
+                }
+            }
+
+            if (state.issues && Array.isArray(state.issues)) {
+                issues = state.issues;
+                if (!activeEl || !document.getElementById('issuesContainer').contains(activeEl)) {
+                    renderIssuesEditor();
+                }
+            }
+
+            updateDropdownLabels();
+            renderPreview();
+        }
+
+        function buildCurrentStatePayload() {
+            const inputs = {};
+            document.querySelectorAll('input[id], select[id]').forEach(el => {
+                if (el.id && !el.id.startsWith('picker-') && el.id !== 'storeSelector') {
+                    inputs[el.id] = el.value;
+                }
+            });
+
+            return {
+                storeId: currentStoreId,
+                inputs: inputs,
+                dailyNotes: dailyNotes,
+                issues: issues,
+                lastUpdatedBy: clientSessionId,
+                savedAt: new Date().toISOString()
+            };
+        }
+
+        function scheduleCloudSave() {
+            if (!db || isApplyingRemoteUpdate) return;
+
+            updateSaveBadge('syncing', `Saving to ${currentStoreId.toUpperCase()}...`);
+            clearTimeout(cloudSaveTimeout);
+
+            cloudSaveTimeout = setTimeout(async () => {
+                try {
+                    const payload = buildCurrentStatePayload();
+                    await db.collection('weekly_updates').doc(currentStoreId).set(payload, { merge: true });
+                    updateSaveBadge('synced', `✓ Synced: ${currentStoreId.toUpperCase()}`);
+                } catch (err) {
+                    console.error("Failed to sync to Firestore:", err);
+                    updateSaveBadge('offline', `Saved Locally (Sync Error)`);
+                }
+            }, 500);
+        }
+
+        function updateSaveBadge(mode, text) {
+            const statusEl = document.getElementById('saveStatus');
+            if (!statusEl) return;
+            statusEl.className = 'save-indicator';
+            if (mode === 'syncing') statusEl.classList.add('syncing');
+            if (mode === 'offline') statusEl.classList.add('offline');
+            statusEl.textContent = text;
+        }
+
+        function copyShareableStoreUrl() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('store', currentStoreId);
+            navigator.clipboard.writeText(url.toString()).then(() => {
+                showToast(`Copied ${currentStoreId.toUpperCase()} locked URL! Send this link to that location.`);
+            }).catch(() => {
+                prompt("Copy this store-specific URL:", url.toString());
+            });
+        }
+
+        // =========================================================================
+        // 5. CORE FORM HANDLERS & LOCALSTORAGE BACKUP
+        // =========================================================================
+        function formatDateHeader(dateString) {
+            if (!dateString) return '';
+            const parts = dateString.split('-');
+            if (parts.length !== 3) return dateString;
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            
+            const date = new Date(year, month - 1, day);
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+            const shortYear = date.getFullYear().toString().slice(-2);
+            
+            return `${dayName} ${month}-${day}-${shortYear}`;
+        }
+
+        function updateDropdownLabels() {
+            const pickerIds = ['moveIns', 'moveOuts', 'transfers', 'pastDueCust', 'unrentableUnits'];
+            pickerIds.forEach(id => {
+                const inputEl = document.getElementById(id);
+                const pickerEl = document.getElementById(`picker-${id}`);
+                if (inputEl && pickerEl) {
+                    const defaultOpt = pickerEl.querySelector('.default-opt');
+                    if (defaultOpt) {
+                        const val = inputEl.value.trim();
+                        defaultOpt.textContent = val !== '' ? val : '0';
+                    }
+                }
+            });
+        }
+
+        function handleInput() {
+            updateDropdownLabels();
+            renderPreview();
+            saveToLocalStorage(currentStoreId);
+            scheduleCloudSave();
+        }
+
+        async function resetForm() {
+            if (confirm(`Are you sure you want to clear all form fields for ${currentStoreId.toUpperCase()} and reset to defaults?`)) {
+                try {
+                    localStorage.removeItem(getStorageKey(currentStoreId));
+                } catch (e) {
+                    console.error("Failed to clear localStorage:", e);
+                }
+                resetFieldsToDefaults(currentStoreId);
+                renderDailyNotesEditor();
+                renderIssuesEditor();
+                updateDropdownLabels();
+                renderPreview();
+                saveToLocalStorage(currentStoreId);
+                scheduleCloudSave();
+                showToast(`Reset ${currentStoreId.toUpperCase()} form to defaults.`);
+            }
+        }
+
+        function saveToLocalStorage(storeId = currentStoreId) {
+            const state = buildCurrentStatePayload();
+            try {
+                localStorage.setItem(getStorageKey(storeId), JSON.stringify(state));
+                if (!db) {
+                    updateSaveBadge('offline', `✓ Saved Locally: ${storeId.toUpperCase()}`);
+                }
+            } catch (e) {
+                console.error("Failed to save to localStorage:", e);
+            }
+        }
+
+        function loadFromLocalStorage(storeId = currentStoreId) {
+            try {
+                const saved = localStorage.getItem(getStorageKey(storeId));
+                if (!saved) return;
+
+                const state = JSON.parse(saved);
+
+                if (state.inputs) {
+                    Object.keys(state.inputs).forEach(id => {
+                        if (id === 'storeSelector') return;
+                        const el = document.getElementById(id);
+                        if (el) el.value = state.inputs[id];
+                    });
+                }
+
+                if (state.dailyNotes && Array.isArray(state.dailyNotes)) {
+                    dailyNotes = state.dailyNotes;
+                }
+
+                if (state.issues && Array.isArray(state.issues)) {
+                    issues = state.issues;
+                }
+            } catch (e) {
+                console.error("Failed to load from localStorage:", e);
+            }
+        }
+
+        function syncPicker(inputId, selectEl) {
+            if (selectEl.value !== "") {
+                document.getElementById(inputId).value = selectEl.value;
+                selectEl.value = "";
+                handleInput();
+            }
+        }
+
+        function renderDailyNotesEditor() {
+            const container = document.getElementById('dailyNotesContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            dailyNotes.forEach((day, dayIdx) => {
+                const dayBlock = document.createElement('div');
+                dayBlock.className = 'day-block';
+
+                let tasksHTML = day.tasks.map((task, taskIdx) => `
+                    <div class="task-item">
+                        <input type="text" value="${escapeAttr(task)}" oninput="updateTask(${dayIdx}, ${taskIdx}, this.value)">
+                        <button class="btn-icon-del" onclick="removeTask(${dayIdx}, ${taskIdx})">✕</button>
+                    </div>
+                `).join('');
+
+                dayBlock.innerHTML = `
+                    <div class="day-header">
+                        <input type="date" value="${day.dateVal || ''}" style="font-weight:bold; width:160px;" onchange="handleDateChange(${dayIdx}, this.value)">
+                        <input type="text" value="${escapeAttr(day.dayHeader)}" style="font-weight:bold; width:160px;" oninput="updateDayHeader(${dayIdx}, this.value)">
+                        <button class="btn-icon-del" style="margin-left:auto;" onclick="removeDayBlock(${dayIdx})">Delete Day</button>
+                    </div>
+                    <div class="task-list">
+                        ${tasksHTML}
+                    </div>
+                    <button class="btn-add-sub" onclick="addTask(${dayIdx})">+ Add Task Item</button>
+                `;
+                container.appendChild(dayBlock);
+            });
+        }
+
+        function handleDateChange(dayIdx, dateVal) {
+            dailyNotes[dayIdx].dateVal = dateVal;
+            if (dateVal) {
+                dailyNotes[dayIdx].dayHeader = formatDateHeader(dateVal);
+            }
+            renderDailyNotesEditor();
+            handleInput();
+        }
+
+        function updateDayHeader(dayIdx, val) {
+            dailyNotes[dayIdx].dayHeader = val;
+            handleInput();
+        }
+
+        function updateTask(dayIdx, taskIdx, val) {
+            dailyNotes[dayIdx].tasks[taskIdx] = val;
+            handleInput();
+        }
+
+        function addTask(dayIdx) {
+            dailyNotes[dayIdx].tasks.push("New task entry...");
+            renderDailyNotesEditor();
+            handleInput();
+        }
+
+        function removeTask(dayIdx, taskIdx) {
+            dailyNotes[dayIdx].tasks.splice(taskIdx, 1);
+            renderDailyNotesEditor();
+            handleInput();
+        }
+
+        function addDayBlock() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+
+            dailyNotes.push({
+                dayHeader: formatDateHeader(todayStr),
+                dateVal: todayStr,
+                tasks: ["Task description..."]
+            });
+            renderDailyNotesEditor();
+            handleInput();
+        }
+
+        function removeDayBlock(dayIdx) {
+            dailyNotes.splice(dayIdx, 1);
+            renderDailyNotesEditor();
+            handleInput();
+        }
+
+        function renderIssuesEditor() {
+            const container = document.getElementById('issuesContainer');
+            if (!container) return;
+            container.innerHTML = '';
+
+            issues.forEach((issue, idx) => {
+                const card = document.createElement('div');
+                card.className = 'issue-card';
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:800; font-size:0.85rem; color:var(--brand-gray);">Issue #${idx + 1}</span>
+                        <button class="btn-icon-del" onclick="removeIssueCard(${idx})">Remove Issue</button>
+                    </div>
+                    <input type="text" value="${escapeAttr(issue.title)}" placeholder="Issue Description" oninput="updateIssue(${idx}, 'title', this.value)">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                        <div>
+                            <label>Reported? (Y/N):</label>
+                            <select onchange="updateIssue(${idx}, 'reported', this.value)">
+                                <option value="Y" ${issue.reported === 'Y' ? 'selected' : ''}>Y</option>
+                                <option value="N" ${issue.reported === 'N' ? 'selected' : ''}>N</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Reported To:</label>
+                            <input type="text" value="${escapeAttr(issue.reportedTo)}" oninput="updateIssue(${idx}, 'reportedTo', this.value)">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Steps Taken:</label>
+                        <input type="text" value="${escapeAttr(issue.stepsTaken)}" oninput="updateIssue(${idx}, 'stepsTaken', this.value)">
+                    </div>
+                    <div>
+                        <label>Resolved? (Y/N):</label>
+                        <select onchange="updateIssue(${idx}, 'resolved', this.value)">
+                            <option value="Y" ${issue.resolved === 'Y' ? 'selected' : ''}>Y</option>
+                            <option value="N" ${issue.resolved === 'N' ? 'selected' : ''}>N</option>
+                        </select>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateIssue(idx, field, val) {
+            issues[idx][field] = val;
+            handleInput();
+        }
+
+        function addIssueCard() {
+            issues.push({
+                title: "New issue description",
+                reported: "Y",
+                reportedTo: "Maintenance",
+                stepsTaken: "Under review.",
+                resolved: "N"
+            });
+            renderIssuesEditor();
+            handleInput();
+        }
+
+        function removeIssueCard(idx) {
+            issues.splice(idx, 1);
+            renderIssuesEditor();
+            handleInput();
+        }
+
+        function formatPercent(id) {
+            const el = document.getElementById(id);
+            if (!el || !el.value.trim()) return '';
+            let val = el.value.trim();
+            if (val.endsWith('%')) {
+                val = val.slice(0, -1).trim();
+            }
+            return val + '%';
+        }
+
+        function renderPreview() {
+            const getVal = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
+        
+            const title = getVal('reportTitle').trim() || 'Weekly Update';
+            
+            document.title = title;
+            const headerTitleEl = document.getElementById('mainHeaderTitle');
+            if (headerTitleEl) headerTitleEl.textContent = title;
+
+            const m1Name = getVal('depMonth1Name');
+            const y1 = getVal('depYear1').trim();
+            const priorY1 = (parseInt(y1, 10) - 1) ? (parseInt(y1, 10) - 1) : (y1 ? `${y1} (Prior)` : '');
+        
+            const m2Name = getVal('depMonth2Name');
+            const y2 = getVal('depYear2').trim();
+            const priorY2 = (parseInt(y2, 10) - 1) ? (parseInt(y2, 10) - 1) : (y2 ? `${y2} (Prior)` : '');
+        
+            let dailyNotesHTML = dailyNotes.map(d => `
+                <div style="font-weight:bold; text-transform:uppercase; margin-top:10px; margin-bottom:4px; color:#000;">${escapeHtml(d.dayHeader)}</div>
+                <ul style="margin:0 0 10px 0; padding-left:20px;">
+                    ${d.tasks.map(t => `<li style="margin-bottom:2px;">${escapeHtml(t)}</li>`).join('')}
+                </ul>
+            `).join('');
+        
+            let issuesHTML = issues.map(i => `
+                <table style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:inherit; font-family:inherit;">
+                    <tr>
+                        <td style="padding-bottom:8px; border-bottom:1px dashed #cccccc; color:#000000;">
+                            <div><b>${escapeHtml(i.title)}</b></div>
+                            <div><b>Has it been reported?</b> ${escapeHtml(i.reported)} &nbsp;&nbsp;&nbsp;&nbsp; <b>Reported to:</b> ${escapeHtml(i.reportedTo)}</div>
+                            <div><b>Steps taken:</b> ${escapeHtml(i.stepsTaken)}</div>
+                            <div><b>Resolved?</b> ${escapeHtml(i.resolved)} <i>(once resolved, remove from Weekly Update the following week)</i></div>
+                        </td>
+                    </tr>
+                </table>
+            `).join('');
+        
+            const makeHeader = (text, isFirst = false) => `
+                <table style="width:100%; border-collapse:collapse; margin-bottom:6px;">
+                    <tr>
+                        <td style="font-size:1.15rem; font-weight:bold; text-transform:uppercase; border-bottom:1.5px solid #000000; padding-top:${isFirst ? '0px' : '22px'}; padding-bottom:4px; color:#000000;">
+                            ${text}
+                        </td>
+                    </tr>
+                </table>`;
+        
+            const makeRow = (label, val) => `
+                <tr>
+                    <td style="font-weight:bold; width:220px; padding:2px 0; vertical-align:top;">${label}</td>
+                    <td style="padding:2px 0; vertical-align:top;">${val}</td>
+                </tr>`;
+        
+            const html = `
+                <div style="font-size:1.15rem; font-weight:bold; text-transform:uppercase; margin-bottom:12px; color:#000;">${escapeHtml(title)}</div>
+                
+                ${makeHeader('MOVE INS:', true)}
+                <table style="width:100%; border-collapse:collapse; font-size:inherit; font-family:inherit;">
+                    ${makeRow('Move Ins:', getVal('moveIns'))}
+                    ${makeRow('Move Out:', getVal('moveOuts'))}
+                    ${makeRow('Transfers:', getVal('transfers'))}
+                </table>
+        
+                ${makeHeader('OCCUPANCY:')}
+                <table style="width:100%; border-collapse:collapse; font-size:inherit; font-family:inherit;">
+                    ${makeRow('Standard:', formatPercent('occStandard'))}
+                    ${makeRow('Climate Controlled:', formatPercent('occClimate'))}
+                    ${makeRow('Covered Boat/RV:', formatPercent('occBoat'))}
+                    ${makeRow('Outside Parking:', formatPercent('occOutsideParking'))}
+                    ${makeRow('Portable:', formatPercent('occPortable'))}
+                    ${makeRow('Total Occupancy:', formatPercent('occTotal'))}
+                    ${makeRow('Last Year’s Occupancy:', formatPercent('occLastYear'))}
+                </table>
+        
+                ${makeHeader('DELINQUENCY:')}
+                <table style="width:100%; border-collapse:collapse; font-size:inherit; font-family:inherit;">
+                    ${makeRow('Rate:', formatPercent('delinqRate'))}
+                    ${makeRow('Past Due Customers:', getVal('pastDueCust'))}
+                    ${makeRow("Past Due $'s:", "$" + getVal("pastDueDollars"))}
+                    ${makeRow('Total # of Rented:', getVal('totalRented'))}
+                    ${makeRow('Past Due 60:', getVal('pastDue60'))}
+                    ${makeRow('Past Due 30-59:', getVal('pastDue3059'))}
+                    ${makeRow('Past Due 5-29:', getVal('pastDue529'))}
+                    ${makeRow('Date of Last Auction:', getVal('lastAuction'))}
+                    ${makeRow('Date of Next Auction:', getVal('nextAuction'))}
+                </table>
+        
+                ${makeHeader('DEPOSITS:')}
+                <table style="width:100%; border-collapse:collapse; font-size:inherit; font-family:inherit;">
+                    ${makeRow(`${m1Name}${y1}:`, '$' + getVal('depM1Current'))}
+                    ${makeRow(`${m1Name}${priorY1}:`, '$' + getVal('depM1Prior'))}
+                    ${makeRow(`${m2Name}${y2}:`, '$' + getVal('depM2Current'))}
+                    ${makeRow(`${m2Name}${priorY2}:`, '$' + getVal('depM2Prior'))}
+                </table>
+        
+                ${makeHeader('NUMBER OF UNRENTABLE UNITS:')}
+                <table style="width:100%; border-collapse:collapse; font-size:inherit; font-family:inherit;">
+                    <tr>
+                        <td style="padding:2px 0 4px 0; vertical-align:top; color:#000000;">
+                            ${getVal('unrentableUnits')}
+                        </td>
+                    </tr>
+                </table>
+        
+                ${makeHeader('WEEKLY NOTES:')}
+                ${dailyNotesHTML}
+        
+                ${makeHeader('UNRESOLVED/ONGOING ISSUES')}
+                ${issuesHTML}
+            `;
+        
+            const previewEl = document.getElementById('emailPreview');
+            if (previewEl) previewEl.innerHTML = html;
+        }
+
+        function downloadEML() {
+            const getVal = (id) => document.getElementById(id) ? document.getElementById(id).value : '';
+            const recipient = getVal('emailRecipient') || '';
+            const title = getVal('reportTitle').trim() || 'Weekly Update';
+            const previewEl = document.getElementById('emailPreview');
+            const htmlContent = previewEl ? previewEl.innerHTML : '';
+
+            const emlContent = 
+`To: ${recipient}
+Subject: ${title}
+X-Unsent: 1
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; color: #000000;">
+${htmlContent}
+</body>
+</html>`;
+
+            const blob = new Blob([emlContent], { type: 'message/rfc822' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.eml`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+
+            showToast("EML file downloaded! Open directly in Outlook or email client.");
+        }
+
+        async function copyFormattedEmail() {
+            const previewEl = document.getElementById('emailPreview');
+            if (!previewEl) return;
+
+            const rawHtml = previewEl.innerHTML;
+            const plainText = previewEl.innerText;
+
+            try {
+                if (navigator.clipboard && window.ClipboardItem) {
+                    const htmlBlob = new Blob([rawHtml], { type: 'text/html' });
+                    const textBlob = new Blob([plainText], { type: 'text/plain' });
+                    const item = new ClipboardItem({
+                        'text/html': htmlBlob,
+                        'text/plain': textBlob
+                    });
+                    await navigator.clipboard.write([item]);
+                    showToast("Copied with full formatting! Paste directly into email.");
+                } else {
+                    fallbackCopy();
+                }
+            } catch (err) {
+                fallbackCopy();
+            }
+        }
+
+        function fallbackCopy() {
+            const previewEl = document.getElementById('emailPreview');
+            if (!previewEl) return;
+
+            const range = document.createRange();
+            range.selectNode(previewEl);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+
+            try {
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                showToast("Copied to clipboard!");
+            } catch (err) {
+                alert("Failed to copy. Please select preview text manually and copy.");
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2800);
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeAttr(str) {
+            return String(str).replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
