@@ -460,6 +460,29 @@
             display: none;
             z-index: 9999;
         }
+
+        .app-footer {
+            background: var(--white);
+            border-top: 1px solid var(--border-color);
+            padding: 6px 16px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .app-footer a {
+            color: var(--brand-blue);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .app-footer a:hover {
+            text-decoration: underline;
+        }
+
     </style>
 </head>
 <body>
@@ -769,6 +792,11 @@
             </div>
         </div>
     </main>
+
+    <footer class="app-footer">
+        <span>Built by <strong>John</strong> &bull; Weekly Update Tool</span>
+        <span>Questions or issues? Email <a href="mailto:YOUR_EMAIL@example.com?subject=Weekly%20Update%20Tool%20Issue">YOUR_EMAIL@example.com</a></span>
+    </footer>
 
     <div id="toast" class="toast">Copied to clipboard! Ready to paste into email.</div>
 
